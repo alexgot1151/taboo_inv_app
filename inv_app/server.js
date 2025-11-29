@@ -64,12 +64,17 @@ function normalizeState(state) {
   if (!state.shishas) state.shishas = [];
   if (!state.misc) state.misc = [];
   state.alcohols = state.alcohols.map((item) => {
-    const quantity = Number(item.quantity || DEFAULT_VOLUME);
-    const originalQuantity = Number(item.originalQuantity || item.quantity || DEFAULT_VOLUME);
+    const parsedQuantity = Number(item.quantity ?? DEFAULT_VOLUME);
+    const quantity = Number.isNaN(parsedQuantity) ? DEFAULT_VOLUME : Math.max(0, parsedQuantity);
+    const parsedOriginal = Number(
+      item.originalQuantity ?? item.quantity ?? DEFAULT_VOLUME
+    );
+    const originalQuantity =
+      Number.isNaN(parsedOriginal) || parsedOriginal <= 0 ? DEFAULT_VOLUME : parsedOriginal;
     return {
       name: item.name,
       quantity: quantity,
-      originalQuantity: originalQuantity > 0 ? originalQuantity : DEFAULT_VOLUME,
+      originalQuantity,
     };
   });
   state.shishas = state.shishas.map((item) => {
