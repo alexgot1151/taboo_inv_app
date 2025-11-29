@@ -6,7 +6,7 @@ const path = require('path');
 const DATA_PATH = path.join(__dirname, 'data', 'inventory.json');
 const DEFAULT_VOLUME = 700;
 const DEFAULT_SHISHA_PACK = 1000; // grams per tin/pack
-const DEFAULT_SHISHA_SERVE = 15; // grams per bowl
+const DEFAULT_SHISHA_SERVE = 30; // grams per bowl
 const DEFAULT_STATE = {
   alcohols: [
     { name: 'Vodka', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
@@ -18,6 +18,7 @@ const DEFAULT_STATE = {
     { name: 'Aperol', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
   ],
   shishas: [],
+  misc: [],
 };
 const SERVER_PORT = process.env.PORT || 4000;
 const AUTH_PASSWORD = loadPassword();
@@ -61,6 +62,7 @@ async function ensureDataFile() {
 function normalizeState(state) {
   if (!state.alcohols) state.alcohols = [];
   if (!state.shishas) state.shishas = [];
+  if (!state.misc) state.misc = [];
   state.alcohols = state.alcohols.map((item) => {
     const quantity = Number(item.quantity || DEFAULT_VOLUME);
     const originalQuantity = Number(item.originalQuantity || item.quantity || DEFAULT_VOLUME);
@@ -85,6 +87,13 @@ function normalizeState(state) {
       packSize: packSize > 0 ? packSize : DEFAULT_SHISHA_PACK,
       gramsPerServe: gramsPerServe > 0 ? gramsPerServe : DEFAULT_SHISHA_SERVE,
       gramsRemaining,
+    };
+  });
+  state.misc = state.misc.map((item) => {
+    const qty = Number(item.quantity || 0);
+    return {
+      name: item.name,
+      quantity: Number.isNaN(qty) || qty < 0 ? 0 : qty,
     };
   });
   return state;
@@ -214,6 +223,43 @@ async function handleAlcoholAdd(req, res) {
   } catch (err) {
     console.error('Error adding alcohol', err);
     return sendJson(res, 500, { message: 'Failed to add alcohol' });
+  }
+}
+
+async function handleAlcoholAddBottle(req, res) {
+  try {
+    const body = await parseBody(req);
+    const name = normalizeName(body.name);
+    const bottleSize = body.bottleSize ? Number(body.bottleSize) : null;
+
+    if (!name) {
+      return sendJson(res, 400, { message: 'Name is required' });
+    }
+    if (bottleSize !== null && (Number.isNaN(bottleSize) || bottleSize <= 0)) {
+      return sendJson(res, 400, { message: 'Bottle size must be positive when provided' });
+    }
+
+    const state = await readState();
+    const item = findItem(state.alcohols, name);
+    if (!item) {
+      const size = bottleSize || DEFAULT_VOLUME;
+      state.alcohols.push({
+        name,
+        quantity: size,
+        originalQuantity: size,
+      });
+    } else {
+      const size = bottleSize || item.originalQuantity || DEFAULT_VOLUME;
+      item.quantity = Math.max(0, item.quantity) + size;
+      if (bottleSize) {
+        item.originalQuantity = size;
+      }
+    }
+    await saveState(state);
+    return sendJson(res, 200, { alcohols: state.alcohols });
+  } catch (err) {
+    console.error('Error adding bottle', err);
+    return sendJson(res, 500, { message: 'Failed to add bottle' });
   }
 }
 
@@ -365,6 +411,69 @@ async function handleShishaDelete(req, res, nameParam) {
   return sendJson(res, 200, { shishas: state.shishas });
 }
 
+async function handleMiscAdd(req, res) {
+  try {
+    const body = await parseBody(req);
+    const name = normalizeName(body.name);
+    const quantity = Number(body.quantity || 0);
+    if (!name) {
+      return sendJson(res, 400, { message: 'Name is required' });
+    }
+    if (Number.isNaN(quantity) || quantity < 0) {
+      return sendJson(res, 400, { message: 'Quantity must be zero or more' });
+    }
+    const state = await readState();
+    const existing = findItem(state.misc, name);
+    if (existing) {
+      existing.quantity = quantity;
+    } else {
+      state.misc.push({ name, quantity });
+    }
+    await saveState(state);
+    return sendJson(res, 200, { misc: state.misc });
+  } catch (err) {
+    console.error('Error adding misc item', err);
+    return sendJson(res, 500, { message: 'Failed to add misc item' });
+  }
+}
+
+async function handleMiscAdjust(req, res) {
+  try {
+    const body = await parseBody(req);
+    const name = normalizeName(body.name);
+    const delta = Number(body.delta || -1);
+    if (!name || Number.isNaN(delta) || delta === 0) {
+      return sendJson(res, 400, { message: 'Name and non-zero delta are required' });
+    }
+    const state = await readState();
+    const item = findItem(state.misc, name);
+    if (!item) {
+      return sendJson(res, 404, { message: 'Misc item not found' });
+    }
+    item.quantity = Math.max(0, item.quantity + delta);
+    await saveState(state);
+    return sendJson(res, 200, { misc: state.misc });
+  } catch (err) {
+    console.error('Error adjusting misc item', err);
+    return sendJson(res, 500, { message: 'Failed to adjust misc item' });
+  }
+}
+
+async function handleMiscDelete(req, res, nameParam) {
+  const name = normalizeName(nameParam);
+  if (!name) {
+    return sendJson(res, 400, { message: 'Name is required' });
+  }
+  const state = await readState();
+  const initialLength = state.misc.length;
+  state.misc = state.misc.filter((item) => item.name.toLowerCase() !== name.toLowerCase());
+  if (state.misc.length === initialLength) {
+    return sendJson(res, 404, { message: 'Misc item not found' });
+  }
+  await saveState(state);
+  return sendJson(res, 200, { misc: state.misc });
+}
+
 const server = http.createServer(async (req, res) => {
   setCors(res);
 
@@ -394,6 +503,10 @@ const server = http.createServer(async (req, res) => {
     return handleAlcoholAdd(req, res);
   }
 
+  if (url.pathname === '/api/alcohols/add-bottle' && req.method === 'POST') {
+    return handleAlcoholAddBottle(req, res);
+  }
+
   if (url.pathname === '/api/alcohols/refill' && req.method === 'POST') {
     return handleAlcoholRefill(req, res);
   }
@@ -414,6 +527,20 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/shishas/restock' && req.method === 'POST') {
     return handleShishaRestock(req, res);
+  }
+
+  if (url.pathname === '/api/misc' && req.method === 'POST') {
+    return handleMiscAdd(req, res);
+  }
+
+  if (url.pathname === '/api/misc/adjust' && req.method === 'POST') {
+    return handleMiscAdjust(req, res);
+  }
+
+  if (url.pathname.startsWith('/api/misc/') && req.method === 'DELETE') {
+    const [, , , rawName] = url.pathname.split('/');
+    const decoded = decodeURIComponent(rawName || '');
+    return handleMiscDelete(req, res, decoded);
   }
 
   if (url.pathname.startsWith('/api/shishas/') && req.method === 'DELETE') {

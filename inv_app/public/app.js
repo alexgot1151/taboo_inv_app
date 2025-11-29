@@ -20,11 +20,13 @@
   const shishaList = document.getElementById('shisha-list');
   const addAlcoholForm = document.getElementById('add-alcohol-form');
   const addShishaForm = document.getElementById('add-shisha-form');
+  const miscList = document.getElementById('misc-list');
+  const addMiscForm = document.getElementById('add-misc-form');
   const toastEl = document.getElementById('toast');
   const lowAlert = document.getElementById('low-alert');
 
   let authPassword = sessionStorage.getItem('inv_password') || '';
-  let state = { alcohols: [], shishas: [] };
+  let state = { alcohols: [], shishas: [], misc: [] };
   let toastTimeout = null;
   let pollHandle = null;
   const lowNotified = new Set();
@@ -107,8 +109,9 @@
     const lowShishas = state.shishas.filter(
       (s) => s.gramsRemaining <= (s.gramsPerServe || 15) * 2
     );
+    const lowMisc = state.misc.filter((m) => m.quantity <= 1);
 
-    if (!lowAlcohols.length && !lowShishas.length) {
+    if (!lowAlcohols.length && !lowShishas.length && !lowMisc.length) {
       lowAlert.classList.add('hidden');
       lowAlert.textContent = '';
       return;
@@ -129,6 +132,13 @@
             (s) =>
               `${s.name} (${formatGrams(s.gramsRemaining)} ≈ ${servingsLeft(s)} bowls)`
           )
+          .join(', ')}`
+      );
+    }
+    if (lowMisc.length) {
+      parts.push(
+        `Misc: ${lowMisc
+          .map((m) => `${m.name} (${m.quantity} pcs)`)
           .join(', ')}`
       );
     }
@@ -154,6 +164,15 @@
         currentlyLow.add(key);
         if (!lowNotified.has(key)) {
           showToast(`${item.name} shisha is running low`);
+        }
+      }
+    });
+    state.misc.forEach((item) => {
+      const key = `m:${item.name.toLowerCase()}`;
+      if (item.quantity <= 1) {
+        currentlyLow.add(key);
+        if (!lowNotified.has(key)) {
+          showToast(`${item.name} is low`);
         }
       }
     });
@@ -186,7 +205,7 @@
         </div>
         <div class="item-actions">
           <button class="primary-btn" data-action="pour" data-name="${item.name}">Pour 40ml</button>
-          <button class="secondary-btn" data-action="refill" data-name="${item.name}">Refill</button>
+          <button class="secondary-btn" data-action="add-bottle" data-name="${item.name}">Add bottle</button>
           <button class="secondary-btn danger" data-action="remove" data-name="${item.name}">Remove</button>
         </div>
       `;
@@ -229,9 +248,40 @@
     });
   }
 
+  function renderMisc() {
+    const miscList = document.getElementById('misc-list');
+    miscList.innerHTML = '';
+    const sorted = [...state.misc].sort((a, b) => a.name.localeCompare(b.name));
+    if (!sorted.length) {
+      miscList.innerHTML = '<p class="muted">No misc items yet.</p>';
+      return;
+    }
+    sorted.forEach((item) => {
+      const low = item.quantity <= 1;
+      const card = document.createElement('div');
+      card.className = 'item-card';
+      card.innerHTML = `
+        <div class="item-header">
+          <div>
+            <p class="item-name">${item.name}</p>
+            <p class="item-qty">${item.quantity} pcs</p>
+          </div>
+          <span class="pill ${low ? 'warn' : 'ok'}">${low ? 'Low' : 'Ready'}</span>
+        </div>
+        <div class="item-actions">
+          <button class="primary-btn" data-action="use-misc" data-name="${item.name}">Use 1</button>
+          <button class="secondary-btn" data-action="add-misc" data-name="${item.name}">+1</button>
+          <button class="secondary-btn danger" data-action="remove-misc" data-name="${item.name}">Remove</button>
+        </div>
+      `;
+      miscList.appendChild(card);
+    });
+  }
+
   function render() {
     renderAlcohols();
     renderShishas();
+    renderMisc();
     updateLowBanner();
     handleLowNotifications();
   }
@@ -240,7 +290,11 @@
     if (!authPassword) return;
     try {
       const data = await api('/api/state', { method: 'GET' });
-      state = data;
+      state = {
+        alcohols: data.alcohols || [],
+        shishas: data.shishas || [],
+        misc: data.misc || [],
+      };
       render();
       if (!silent) {
         showToast('Synced');
@@ -275,14 +329,6 @@
     await fetchState(true);
   }
 
-  async function refillAlcohol(name) {
-    await api('/api/alcohols/refill', {
-      method: 'POST',
-      body: JSON.stringify({ name }),
-    });
-    await fetchState(true);
-  }
-
   async function addShisha(payload) {
     await api('/api/shishas', {
       method: 'POST',
@@ -303,6 +349,37 @@
     await api('/api/shishas/restock', {
       method: 'POST',
       body: JSON.stringify({ name }),
+    });
+    await fetchState(true);
+  }
+
+  async function addBottle(name, size) {
+    await api('/api/alcohols/add-bottle', {
+      method: 'POST',
+      body: JSON.stringify(size ? { name, bottleSize: size } : { name }),
+    });
+    await fetchState(true);
+  }
+
+  async function addMisc(payload) {
+    await api('/api/misc', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    await fetchState(true);
+  }
+
+  async function adjustMisc(name, delta) {
+    await api('/api/misc/adjust', {
+      method: 'POST',
+      body: JSON.stringify({ name, delta }),
+    });
+    await fetchState(true);
+  }
+
+  async function removeMisc(name) {
+    await api(`/api/misc/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
     });
     await fetchState(true);
   }
@@ -343,7 +420,7 @@
   logoutBtn.addEventListener('click', () => {
     authPassword = '';
     sessionStorage.removeItem('inv_password');
-    state = { alcohols: [], shishas: [] };
+    state = { alcohols: [], shishas: [], misc: [] };
     requireLogin();
   });
 
@@ -381,6 +458,20 @@
     }
   });
 
+  addMiscForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = addMiscForm.name.value.trim();
+    const quantity = Number(addMiscForm.quantity.value || 0);
+    if (!name) return;
+    try {
+      await addMisc({ name, quantity });
+      addMiscForm.reset();
+      showToast('Saved misc item');
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
   alcoholList.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
@@ -390,9 +481,9 @@
       if (action === 'pour') {
         await consumeAlcohol(name);
         showToast(`Logged 40ml ${name}`);
-      } else if (action === 'refill') {
-        await refillAlcohol(name);
-        showToast(`Refilled ${name}`);
+      } else if (action === 'add-bottle') {
+        await addBottle(name);
+        showToast(`Added bottle of ${name}`);
       } else if (action === 'remove') {
         await removeAlcohol(name);
         showToast(`Removed ${name}`);
@@ -416,6 +507,27 @@
         showToast(`Restocked ${name}`);
       } else if (action === 'remove-shisha') {
         await removeShisha(name);
+        showToast(`Removed ${name}`);
+      }
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  miscList.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const name = btn.dataset.name;
+    const action = btn.dataset.action;
+    try {
+      if (action === 'use-misc') {
+        await adjustMisc(name, -1);
+        showToast(`Used 1 ${name}`);
+      } else if (action === 'add-misc') {
+        await adjustMisc(name, 1);
+        showToast(`Added 1 ${name}`);
+      } else if (action === 'remove-misc') {
+        await removeMisc(name);
         showToast(`Removed ${name}`);
       }
     } catch (err) {

@@ -8,5 +8,6 @@
     { "name": "Blue Curacao", "quantity": 700, "originalQuantity": 700 },
     { "name": "Aperol", "quantity": 700, "originalQuantity": 700 }
   ],
-  "shishas": []
+  "shishas": [],
+  "misc": []
 }

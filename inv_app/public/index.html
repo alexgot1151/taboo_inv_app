@@ -74,10 +74,26 @@
             <button type="submit" class="primary-btn">Add / Set</button>
           </form>
         </div>
+
+        <div class="card panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Misc</p>
+              <h3>Pieces & supplies</h3>
+              <p class="muted">Track items in pieces.</p>
+            </div>
+          </div>
+          <div id="misc-list" class="item-list"></div>
+          <form id="add-misc-form" class="inline-form">
+            <input name="name" type="text" placeholder="Item name" required>
+            <input name="quantity" type="number" min="0" step="1" placeholder="Qty (pieces)">
+            <button type="submit" class="primary-btn">Add / Set</button>
+          </form>
+        </div>
       </div>
     </section>
   </div>
   <div id="toast" class="toast"></div>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
