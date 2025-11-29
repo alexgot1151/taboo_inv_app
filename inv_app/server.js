@@ -177,6 +177,11 @@ async function handleGetState(res) {
   return sendJson(res, 200, state);
 }
 
+async function handlePublicShishas(res) {
+  const state = await readState();
+  return sendJson(res, 200, { shishas: state.shishas || [] });
+}
+
 async function handleAlcoholConsume(req, res) {
   try {
     const body = await parseBody(req);
@@ -483,6 +488,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/api/public/shishas' && req.method === 'GET') {
+    return handlePublicShishas(res);
+  }
+
   if (url.pathname === '/api/login' && req.method === 'POST') {
     return handleLogin(req, res);
   }
