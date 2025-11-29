@@ -1,8 +1,11 @@
 (() => {
+  // Always use same-origin API calls; backend nginx proxies /api internally.
   const apiBase = (() => {
-    const envBase = window.API_BASE || '';
-    if (envBase) return envBase.replace(/\/$/, '');
-    return '';
+    const { protocol, hostname, port } = window.location;
+    const samePort =
+      hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+    const displayPort = samePort && port ? `:${port}` : '';
+    return `${protocol}//${hostname}${displayPort}`;
   })();
 
   const POLL_MS = 3000;
