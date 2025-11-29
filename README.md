@@ -17,8 +17,7 @@ node inv_app/server.js
 ```
 docker-compose up -d
 ```
-- Website: http://localhost:8080
-- API: http://localhost:4000
+- No host ports are published; attach Nginx Proxy Manager to the `scoobydoo` network and route traffic to the services (`inv_app` on 80, `inv_app_api` on 4000) internally.
 
 ## Notes
 - Default alcohols start at 700ml; every pour logs 40ml and warns at 150ml. Use **Refill** to reset to the bottle’s original ml.

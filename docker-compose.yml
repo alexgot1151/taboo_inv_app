@@ -5,8 +5,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./inv_app/public:/usr/share/nginx/html:ro
-    ports:
-      - "8080:80"
     networks:
       - scoobydoo
 
@@ -19,8 +17,6 @@ services:
       - ./inv_app:/usr/src/app
     env_file:
       - .env
-    ports:
-      - "4000:4000"
     restart: unless-stopped
     networks:
       - scoobydoo
