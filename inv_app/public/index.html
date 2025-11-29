@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bar Inventory</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="gradient-bg"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo-dot"></div>
+        <div>
+          <p class="eyebrow">Scoobydoo Network</p>
+          <h1>Inventory Pulse</h1>
+          <p class="muted">Bar bottles & shisha flavours, tuned for phones.</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="sync-btn" class="ghost-btn">Sync</button>
+        <button id="logout-btn" class="ghost-btn danger hidden">Logout</button>
+      </div>
+    </header>
+
+    <section id="login-panel" class="card panel">
+      <div>
+        <p class="eyebrow">Staff Login</p>
+        <h2>Unlock stock controls</h2>
+        <p class="muted">Password is stored server-side in <code>.env</code>.</p>
+      </div>
+      <form id="login-form" class="stacked">
+        <label for="password-input">Password</label>
+        <input id="password-input" type="password" placeholder="Enter password" autocomplete="current-password" required>
+        <button type="submit" class="primary-btn">Enter</button>
+        <p id="login-error" class="error-text"></p>
+      </form>
+    </section>
+
+    <section id="app-panel" class="hidden">
+      <div id="low-alert" class="banner hidden"></div>
+      <div class="grid">
+        <div class="card panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Alcohol</p>
+              <h3>Bottle board</h3>
+              <p class="muted">Tap to log a 40ml pour.</p>
+            </div>
+          </div>
+          <div id="alcohol-list" class="item-list"></div>
+          <form id="add-alcohol-form" class="inline-form">
+            <input name="name" type="text" placeholder="New alcohol name" required>
+            <input name="quantity" type="number" min="50" step="10" placeholder="ml (default 700)">
+            <button type="submit" class="primary-btn">Add / Set</button>
+          </form>
+        </div>
+
+        <div class="card panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Shisha</p>
+              <h3>Flavour shelf</h3>
+              <p class="muted">Track tins or bowls left.</p>
+            </div>
+          </div>
+          <div id="shisha-list" class="item-list"></div>
+          <form id="add-shisha-form" class="inline-form">
+            <input name="name" type="text" placeholder="New flavour" required>
+            <input name="quantity" type="number" min="0" step="1" placeholder="Qty (default 10)">
+            <button type="submit" class="primary-btn">Add / Set</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

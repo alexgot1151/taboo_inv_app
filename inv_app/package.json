@@ -1,0 +1,10 @@
+{
+  "name": "inv-app",
+  "version": "1.0.0",
+  "description": "Simple bar inventory tracker with login and shared persistence.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}
