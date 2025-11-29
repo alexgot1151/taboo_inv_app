@@ -6,13 +6,14 @@
     return `${protocol}//${host}:4000`;
   })();
 
+  const POLL_MS = 3000;
+
   const loginPanel = document.getElementById('login-panel');
   const appPanel = document.getElementById('app-panel');
   const loginForm = document.getElementById('login-form');
   const passwordInput = document.getElementById('password-input');
   const loginError = document.getElementById('login-error');
   const logoutBtn = document.getElementById('logout-btn');
-  const syncBtn = document.getElementById('sync-btn');
   const alcoholList = document.getElementById('alcohol-list');
   const shishaList = document.getElementById('shisha-list');
   const addAlcoholForm = document.getElementById('add-alcohol-form');
@@ -73,7 +74,7 @@
     if (!pollHandle) {
       pollHandle = setInterval(() => {
         fetchState(true);
-      }, 5000);
+      }, POLL_MS);
     }
   }
 
@@ -133,12 +134,15 @@
         <div class="item-header">
           <div>
             <p class="item-name">${item.name}</p>
-            <p class="item-qty">${formatMl(item.quantity)} left</p>
+            <p class="item-qty">${formatMl(item.quantity)} left • Full: ${formatMl(
+        item.originalQuantity || item.quantity
+      )}</p>
           </div>
           <span class="pill ${low ? 'warn' : 'ok'}">${low ? 'Low' : 'Ready'}</span>
         </div>
         <div class="item-actions">
           <button class="primary-btn" data-action="pour" data-name="${item.name}">Pour 40ml</button>
+          <button class="secondary-btn" data-action="refill" data-name="${item.name}">Refill</button>
           <button class="secondary-btn danger" data-action="remove" data-name="${item.name}">Remove</button>
         </div>
       `;
@@ -230,6 +234,14 @@
     await fetchState(true);
   }
 
+  async function refillAlcohol(name) {
+    await api('/api/alcohols/refill', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    await fetchState(true);
+  }
+
   async function adjustShisha(name, delta) {
     await api('/api/shishas/adjust', {
       method: 'POST',
@@ -278,10 +290,6 @@
     requireLogin();
   });
 
-  syncBtn.addEventListener('click', () => {
-    fetchState();
-  });
-
   addAlcoholForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = addAlcoholForm.name.value.trim();
@@ -319,6 +327,9 @@
       if (action === 'pour') {
         await consumeAlcohol(name);
         showToast(`Logged 40ml ${name}`);
+      } else if (action === 'refill') {
+        await refillAlcohol(name);
+        showToast(`Refilled ${name}`);
       } else if (action === 'remove') {
         await removeAlcohol(name);
         showToast(`Removed ${name}`);

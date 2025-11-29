@@ -4,15 +4,16 @@ const fsp = fs.promises;
 const path = require('path');
 
 const DATA_PATH = path.join(__dirname, 'data', 'inventory.json');
+const DEFAULT_VOLUME = 700;
 const DEFAULT_STATE = {
   alcohols: [
-    { name: 'Vodka', quantity: 700 },
-    { name: 'Gin', quantity: 700 },
-    { name: 'Tequila', quantity: 700 },
-    { name: 'Whisky', quantity: 700 },
-    { name: 'Beileys', quantity: 700 },
-    { name: 'Blue Curacao', quantity: 700 },
-    { name: 'Aperol', quantity: 700 },
+    { name: 'Vodka', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
+    { name: 'Gin', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
+    { name: 'Tequila', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
+    { name: 'Whisky', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
+    { name: 'Beileys', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
+    { name: 'Blue Curacao', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
+    { name: 'Aperol', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
   ],
   shishas: [],
 };
@@ -55,15 +56,31 @@ async function ensureDataFile() {
   }
 }
 
+function normalizeState(state) {
+  if (!state.alcohols) state.alcohols = [];
+  if (!state.shishas) state.shishas = [];
+  state.alcohols = state.alcohols.map((item) => {
+    const quantity = Number(item.quantity || DEFAULT_VOLUME);
+    const originalQuantity = Number(item.originalQuantity || item.quantity || DEFAULT_VOLUME);
+    return {
+      name: item.name,
+      quantity: quantity,
+      originalQuantity: originalQuantity > 0 ? originalQuantity : DEFAULT_VOLUME,
+    };
+  });
+  return state;
+}
+
 async function readState() {
   await ensureDataFile();
   try {
     const raw = await fsp.readFile(DATA_PATH, 'utf8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return normalizeState(parsed);
   } catch (err) {
     console.error('Failed to read inventory file, resetting to defaults', err);
     await fsp.writeFile(DATA_PATH, JSON.stringify(DEFAULT_STATE, null, 2));
-    return JSON.parse(JSON.stringify(DEFAULT_STATE));
+    return normalizeState(JSON.parse(JSON.stringify(DEFAULT_STATE)));
   }
 }
 
@@ -160,7 +177,7 @@ async function handleAlcoholAdd(req, res) {
   try {
     const body = await parseBody(req);
     const name = normalizeName(body.name);
-    const quantity = Number(body.quantity || 700);
+    const quantity = Number(body.quantity || DEFAULT_VOLUME);
     if (!name || Number.isNaN(quantity) || quantity <= 0) {
       return sendJson(res, 400, { message: 'Name and positive quantity are required' });
     }
@@ -169,8 +186,9 @@ async function handleAlcoholAdd(req, res) {
     const existing = findItem(state.alcohols, name);
     if (existing) {
       existing.quantity = quantity;
+      existing.originalQuantity = quantity;
     } else {
-      state.alcohols.push({ name, quantity });
+      state.alcohols.push({ name, quantity, originalQuantity: quantity });
     }
     await saveState(state);
     return sendJson(res, 200, { alcohols: state.alcohols });
@@ -195,6 +213,28 @@ async function handleAlcoholDelete(req, res, nameParam) {
   }
   await saveState(state);
   return sendJson(res, 200, { alcohols: state.alcohols });
+}
+
+async function handleAlcoholRefill(req, res) {
+  try {
+    const body = await parseBody(req);
+    const name = normalizeName(body.name);
+    if (!name) {
+      return sendJson(res, 400, { message: 'Name is required' });
+    }
+    const state = await readState();
+    const item = findItem(state.alcohols, name);
+    if (!item) {
+      return sendJson(res, 404, { message: 'Alcohol not found' });
+    }
+    const refillTo = item.originalQuantity || DEFAULT_VOLUME;
+    item.quantity = refillTo;
+    await saveState(state);
+    return sendJson(res, 200, { alcohols: state.alcohols });
+  } catch (err) {
+    console.error('Error refilling alcohol', err);
+    return sendJson(res, 500, { message: 'Failed to refill alcohol' });
+  }
 }
 
 async function handleShishaAdd(req, res) {
@@ -289,6 +329,10 @@ const server = http.createServer(async (req, res) => {
     return handleAlcoholAdd(req, res);
   }
 
+  if (url.pathname === '/api/alcohols/refill' && req.method === 'POST') {
+    return handleAlcoholRefill(req, res);
+  }
+
   if (url.pathname.startsWith('/api/alcohols/') && req.method === 'DELETE') {
     const [, , , rawName] = url.pathname.split('/');
     const decoded = decodeURIComponent(rawName || '');
@@ -313,6 +357,6 @@ const server = http.createServer(async (req, res) => {
   return res.end();
 });
 
-server.listen(SERVER_PORT, () => {
+server.listen(SERVER_PORT, '0.0.0.0', () => {
   console.log(`Inventory API running on port ${SERVER_PORT}`);
 });

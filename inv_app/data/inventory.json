@@ -1,12 +1,12 @@
 {
   "alcohols": [
-    { "name": "Vodka", "quantity": 700 },
-    { "name": "Gin", "quantity": 700 },
-    { "name": "Tequila", "quantity": 700 },
-    { "name": "Whisky", "quantity": 700 },
-    { "name": "Beileys", "quantity": 700 },
-    { "name": "Blue Curacao", "quantity": 700 },
-    { "name": "Aperol", "quantity": 700 }
+    { "name": "Vodka", "quantity": 700, "originalQuantity": 700 },
+    { "name": "Gin", "quantity": 700, "originalQuantity": 700 },
+    { "name": "Tequila", "quantity": 700, "originalQuantity": 700 },
+    { "name": "Whisky", "quantity": 700, "originalQuantity": 700 },
+    { "name": "Beileys", "quantity": 700, "originalQuantity": 700 },
+    { "name": "Blue Curacao", "quantity": 700, "originalQuantity": 700 },
+    { "name": "Aperol", "quantity": 700, "originalQuantity": 700 }
   ],
   "shishas": []
 }
