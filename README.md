@@ -17,7 +17,7 @@ node inv_app/server.js
 ```
 docker-compose up -d
 ```
-- No host ports are published; attach Nginx Proxy Manager to the `scoobydoo` network and route traffic to the services (`inv_app` on 80, `inv_app_api` on 4000) internally.
+- No host ports are published. The bundled nginx (service `inv_app`) internally proxies `/api` to `inv_app_api:4000` over the `scoobydoo` network. Attach Nginx Proxy Manager to the same network and forward external traffic to `inv_app:80`.
 
 ## Notes
 - Default alcohols start at 700ml; every pour logs 40ml and warns at 150ml. Use **Refill** to reset to the bottle’s original ml.

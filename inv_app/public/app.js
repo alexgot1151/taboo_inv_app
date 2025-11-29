@@ -1,9 +1,8 @@
 (() => {
   const apiBase = (() => {
-    const url = new URL(window.location.href);
-    const host = url.hostname || 'localhost';
-    const protocol = url.protocol.startsWith('http') ? url.protocol : 'http:';
-    return `${protocol}//${host}:4000`;
+    const envBase = window.API_BASE || '';
+    if (envBase) return envBase.replace(/\/$/, '');
+    return '';
   })();
 
   const POLL_MS = 3000;

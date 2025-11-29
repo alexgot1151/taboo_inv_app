@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./inv_app/public:/usr/share/nginx/html:ro
+      - ./inv_app/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - scoobydoo
 
