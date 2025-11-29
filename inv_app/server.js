@@ -5,6 +5,8 @@ const path = require('path');
 
 const DATA_PATH = path.join(__dirname, 'data', 'inventory.json');
 const DEFAULT_VOLUME = 700;
+const DEFAULT_SHISHA_PACK = 1000; // grams per tin/pack
+const DEFAULT_SHISHA_SERVE = 15; // grams per bowl
 const DEFAULT_STATE = {
   alcohols: [
     { name: 'Vodka', quantity: DEFAULT_VOLUME, originalQuantity: DEFAULT_VOLUME },
@@ -66,6 +68,23 @@ function normalizeState(state) {
       name: item.name,
       quantity: quantity,
       originalQuantity: originalQuantity > 0 ? originalQuantity : DEFAULT_VOLUME,
+    };
+  });
+  state.shishas = state.shishas.map((item) => {
+    const packSize = Number(item.packSize || DEFAULT_SHISHA_PACK);
+    const gramsPerServe = Number(item.gramsPerServe || DEFAULT_SHISHA_SERVE);
+    const rawRemaining =
+      item.gramsRemaining !== undefined
+        ? Number(item.gramsRemaining)
+        : item.quantity !== undefined
+        ? Number(item.quantity) * gramsPerServe
+        : packSize;
+    const gramsRemaining = Number.isNaN(rawRemaining) ? packSize : Math.max(0, rawRemaining);
+    return {
+      name: item.name,
+      packSize: packSize > 0 ? packSize : DEFAULT_SHISHA_PACK,
+      gramsPerServe: gramsPerServe > 0 ? gramsPerServe : DEFAULT_SHISHA_SERVE,
+      gramsRemaining,
     };
   });
   return state;
@@ -241,17 +260,41 @@ async function handleShishaAdd(req, res) {
   try {
     const body = await parseBody(req);
     const name = normalizeName(body.name);
-    const quantity = Number(body.quantity || 10);
-    if (!name || Number.isNaN(quantity) || quantity < 0) {
-      return sendJson(res, 400, { message: 'Name and non-negative quantity are required' });
+    const packSize = Number(body.packSize || DEFAULT_SHISHA_PACK);
+    const gramsPerServe = Number(body.gramsPerServe || DEFAULT_SHISHA_SERVE);
+    const hasCurrent = body.currentGrams !== undefined && body.currentGrams !== null && body.currentGrams !== '';
+    const currentGrams = hasCurrent ? Number(body.currentGrams) : null;
+
+    if (!name) {
+      return sendJson(res, 400, { message: 'Name is required' });
+    }
+    if (Number.isNaN(packSize) || packSize <= 0) {
+      return sendJson(res, 400, { message: 'Pack size must be a positive number' });
+    }
+    if (Number.isNaN(gramsPerServe) || gramsPerServe <= 0) {
+      return sendJson(res, 400, { message: 'Grams per shisha must be a positive number' });
+    }
+    if (hasCurrent && (Number.isNaN(currentGrams) || currentGrams < 0)) {
+      return sendJson(res, 400, { message: 'Current grams must be zero or more' });
     }
 
     const state = await readState();
     const existing = findItem(state.shishas, name);
     if (existing) {
-      existing.quantity = quantity;
+      existing.packSize = packSize;
+      existing.gramsPerServe = gramsPerServe;
+      if (hasCurrent) {
+        existing.gramsRemaining = currentGrams;
+      } else if (existing.gramsRemaining === undefined) {
+        existing.gramsRemaining = packSize;
+      }
     } else {
-      state.shishas.push({ name, quantity });
+      state.shishas.push({
+        name,
+        packSize,
+        gramsPerServe,
+        gramsRemaining: hasCurrent ? currentGrams : packSize,
+      });
     }
     await saveState(state);
     return sendJson(res, 200, { shishas: state.shishas });
@@ -261,25 +304,47 @@ async function handleShishaAdd(req, res) {
   }
 }
 
-async function handleShishaAdjust(req, res) {
+async function handleShishaServe(req, res) {
   try {
     const body = await parseBody(req);
     const name = normalizeName(body.name);
-    const delta = Number(body.delta || -1);
-    if (!name || Number.isNaN(delta) || delta === 0) {
-      return sendJson(res, 400, { message: 'Name and non-zero delta are required' });
+    if (!name) {
+      return sendJson(res, 400, { message: 'Name is required' });
     }
     const state = await readState();
     const item = findItem(state.shishas, name);
     if (!item) {
       return sendJson(res, 404, { message: 'Shisha flavour not found' });
     }
-    item.quantity = Math.max(0, item.quantity + delta);
+    const gramsPerServe = item.gramsPerServe || DEFAULT_SHISHA_SERVE;
+    item.gramsRemaining = Math.max(0, item.gramsRemaining - gramsPerServe);
     await saveState(state);
     return sendJson(res, 200, { shishas: state.shishas });
   } catch (err) {
-    console.error('Error adjusting shisha flavour', err);
-    return sendJson(res, 500, { message: 'Failed to adjust shisha flavour' });
+    console.error('Error serving shisha flavour', err);
+    return sendJson(res, 500, { message: 'Failed to serve shisha flavour' });
+  }
+}
+
+async function handleShishaRestock(req, res) {
+  try {
+    const body = await parseBody(req);
+    const name = normalizeName(body.name);
+    if (!name) {
+      return sendJson(res, 400, { message: 'Name is required' });
+    }
+    const state = await readState();
+    const item = findItem(state.shishas, name);
+    if (!item) {
+      return sendJson(res, 404, { message: 'Shisha flavour not found' });
+    }
+    const packSize = item.packSize || DEFAULT_SHISHA_PACK;
+    item.gramsRemaining = Math.max(0, item.gramsRemaining) + packSize;
+    await saveState(state);
+    return sendJson(res, 200, { shishas: state.shishas });
+  } catch (err) {
+    console.error('Error restocking shisha flavour', err);
+    return sendJson(res, 500, { message: 'Failed to restock shisha flavour' });
   }
 }
 
@@ -343,8 +408,12 @@ const server = http.createServer(async (req, res) => {
     return handleShishaAdd(req, res);
   }
 
-  if (url.pathname === '/api/shishas/adjust' && req.method === 'POST') {
-    return handleShishaAdjust(req, res);
+  if (url.pathname === '/api/shishas/serve' && req.method === 'POST') {
+    return handleShishaServe(req, res);
+  }
+
+  if (url.pathname === '/api/shishas/restock' && req.method === 'POST') {
+    return handleShishaRestock(req, res);
   }
 
   if (url.pathname.startsWith('/api/shishas/') && req.method === 'DELETE') {

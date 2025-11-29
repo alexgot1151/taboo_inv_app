@@ -22,5 +22,6 @@ docker-compose up -d
 
 ## Notes
 - Default alcohols start at 700ml; every pour logs 40ml and warns at 150ml. Use **Refill** to reset to the bottle’s original ml.
+- Shisha flavours track pack grams and grams per bowl. “Serve 1” subtracts grams-per-bowl; “Restock pack” adds the pack size.
 - Inventory is persisted to `inv_app/data/inventory.json`.
 - API binds to `0.0.0.0` so it can sit behind Nginx Proxy Manager.

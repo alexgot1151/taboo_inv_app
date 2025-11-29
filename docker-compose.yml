@@ -1,5 +1,5 @@
 services:
-  website:
+  inv_app:
     image: nginx:alpine
     container_name: inv_app
     restart: unless-stopped
