@@ -179,6 +179,17 @@ input:focus {
   outline: 2px solid rgba(194, 76, 142, 0.35);
 }
 
+/* Hide number input spinners for cleaner mobile UI */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .error-text {
   color: #ff9aa2;
   min-height: 18px;
